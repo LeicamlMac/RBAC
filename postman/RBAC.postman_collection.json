@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000"
+      "value": "http://127.0.0.1:3000"
     },
     {
       "key": "adminToken",

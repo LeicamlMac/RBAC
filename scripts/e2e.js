@@ -3,7 +3,8 @@
  * Pré-requisito: API rodando (BASE_URL, padrão http://localhost:3000) com o banco recém-inicializado (npm run db:init).
  * Uso: npm run test:e2e
  */
-const BASE = process.env.BASE_URL || 'http://localhost:3000';
+// 127.0.0.1 em vez de localhost: evita resolução IPv6 (::1), que pode travar no port-forward do Docker Desktop
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:3000';
 let passed = 0;
 let failed = 0;
 
