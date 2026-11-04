@@ -7,9 +7,29 @@ Feita com **Node.js + Express + PostgreSQL**, com login por **JWT** e permissõe
 
 ## 🚀 Apresentação em 1 clique
 
-1. Abra o **Docker Desktop**.
-2. Dê dois cliques em **`apresentacao.bat`**.
-3. Escolha no menu:
+Dê dois cliques em **`apresentacao.bat`**. Só isso.
+
+### O que ele faz sozinho
+
+1. **Verifica as ferramentas** da máquina:
+
+   | Ferramenta | Para quê |
+   |---|---|
+   | winget | Instalador oficial de programas do Windows |
+   | WSL 2 | O Docker precisa dele para rodar no Windows |
+   | Docker Desktop | Roda o banco PostgreSQL e a API |
+   | Node.js | Roda a demonstração e os testes (opcional: sem ele, rodam dentro do Docker) |
+
+2. **Se faltar alguma**, mostra a lista e pergunta *"Instalar agora? (S/N)"*. Respondendo **S**, instala tudo pelas fontes oficiais.
+   O Windows pode pedir permissão de administrador algumas vezes; é só aceitar.
+3. **Se precisar reiniciar** (WSL ou Docker recém-instalados), ele avisa e oferece reiniciar.
+   Depois de reiniciar, abra o `.bat` de novo: ele confere tudo e continua de onde parou.
+4. Na primeira vez que o Docker abrir, ele mostra os **termos de uso**: clique em *Accept*.
+5. **Abre o menu.** Se você escolher uma opção e o sistema ainda estiver desligado, ele liga sozinho.
+
+> Para conferir sem instalar nada: `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Simular`
+
+### Menu
 
 | Opção | O que faz |
 |:-:|---|
@@ -20,10 +40,11 @@ Feita com **Node.js + Express + PostgreSQL**, com login por **JWT** e permissõe
 | **5** | Reseta o banco para os dados iniciais |
 | **6** | Mostra os logs da API |
 | **7** | Desliga o sistema |
+| **8** | Verifica / instala as ferramentas de novo |
 
 > Também dá para chamar direto: `apresentacao.bat 2` executa a opção 2 sem abrir o menu.
 
-**Precisa ter instalado:** Docker Desktop (obrigatório) e Node.js (só para as opções 2 e 3).
+**Requisitos da máquina:** Windows 10 (versão 2004+) ou 11, internet na primeira execução e virtualização ativada na BIOS (já vem ativada na maioria dos PCs).
 
 ### Usuários de teste
 
@@ -108,9 +129,10 @@ A permissão é checada em **dois lugares**:
 Pastas:
 
 ```
-apresentacao.bat     menu da apresentação
+apresentacao.bat     menu da apresentação (verifica/instala ferramentas)
 database/schema.sql  cria as tabelas e os dados de teste
 postman/             coleção para importar no Postman
+scripts/setup.ps1    verifica e instala winget, WSL, Docker e Node
 scripts/demo.js      demonstração guiada
 scripts/e2e.js       testes automáticos das permissões
 src/
