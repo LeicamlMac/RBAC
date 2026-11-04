@@ -1,135 +1,187 @@
 # API de Eventos Acadêmicos — RBAC
 
-API REST para a plataforma de gestão de eventos acadêmicos da universidade, desenvolvida com **Node.js**, **Express** e **PostgreSQL**, autenticação **JWT** e controle de acesso baseado em perfis (**RBAC**): `ADMIN`, `EDITOR` e `USER`.
+API para a universidade gerenciar **eventos**, **participantes**, **inscrições** e **certificados**.
+Feita com **Node.js + Express + PostgreSQL**, com login por **JWT** e permissões por perfil (**RBAC**).
 
-## Funcionalidades
+---
 
-- CRUD de **eventos** com filtros (busca, local, período), ordenação e paginação
-- CRUD de **participantes/usuários** (`/users`) com cadastro público
-- **Inscrição** em eventos com controle de capacidade (transação + `FOR UPDATE`), bloqueio de duplicidade e de eventos encerrados
-- Consulta de **inscrições** (todas para ADMIN/EDITOR, apenas as próprias para USER)
-- Emissão de **certificados** (JSON ou download em HTML), idempotente e com código de validação UUID
-- Documentação **Swagger/OpenAPI** em `/api-docs`
-- Tratamento centralizado de erros, validação com **Joi**, organização em camadas
-- **Docker** / docker-compose
+## 🚀 Apresentação em 1 clique
 
-## Arquitetura (camadas)
+1. Abra o **Docker Desktop**.
+2. Dê dois cliques em **`apresentacao.bat`**.
+3. Escolha no menu:
 
-```
-src/
-├── config/         # variáveis de ambiente e pool do PostgreSQL
-├── routes/         # definição dos endpoints + middlewares RBAC
-├── middlewares/    # authenticate, authorize(...roles), validate, errorHandler
-├── validators/     # schemas Joi
-├── controllers/    # camada HTTP (req/res)
-├── services/       # regras de negócio e regras de posse (ownership)
-├── repositories/   # acesso a dados (SQL parametrizado)
-├── docs/           # especificação OpenAPI 3
-└── utils/          # AppError, paginação, roles
-database/schema.sql # script SQL (DDL + seed)
-postman/            # coleção Postman
-scripts/            # db-init e teste e2e da matriz RBAC
-```
+| Opção | O que faz |
+|:-:|---|
+| **1** | Liga o sistema (banco + API) e abre o Swagger no navegador |
+| **2** | **Demonstração guiada**: mostra cada perfil tentando as mesmas ações, cena por cena (ENTER avança) |
+| **3** | Roda os testes automáticos (60 verificações de permissão) |
+| **4** | Abre o Swagger |
+| **5** | Reseta o banco para os dados iniciais |
+| **6** | Mostra os logs da API |
+| **7** | Desliga o sistema |
 
-Fluxo: `route → authenticate → authorize(roles) → validate → controller → service → repository → PostgreSQL`.
+> Também dá para chamar direto: `apresentacao.bat 2` executa a opção 2 sem abrir o menu.
 
-## Matriz RBAC implementada
+**Precisa ter instalado:** Docker Desktop (obrigatório) e Node.js (só para as opções 2 e 3).
 
-| Funcionalidade | Endpoint | ADMIN | EDITOR | USER | PÚBLICO |
+### Usuários de teste
+
+Todos com a senha **`Senha@123`**:
+
+| Perfil | E-mail |
+|---|---|
+| ADMIN | `admin@universidade.edu` |
+| EDITOR | `editor@universidade.edu` |
+| USER | `user@universidade.edu` |
+
+---
+
+## 👥 Os perfis em uma frase
+
+- **PÚBLICO** (sem login): só vê eventos e pode se cadastrar.
+- **USER** (aluno/participante): se inscreve em eventos, vê **as suas** inscrições e emite **os seus** certificados.
+- **EDITOR** (organizador): cria e edita eventos, vê todos os usuários e inscrições, edita usuários comuns.
+- **ADMIN**: pode tudo, inclusive **deletar** eventos/usuários e mudar o perfil das pessoas.
+
+### Tabela completa de permissões
+
+| O quê | Endpoint | ADMIN | EDITOR | USER | PÚBLICO |
 |---|---|:-:|:-:|:-:|:-:|
-| Listar / buscar eventos | `GET /events`, `GET /events/:id` | ✓ | ✓ | ✓ | ✓ |
+| Ver eventos | `GET /events` | ✓ | ✓ | ✓ | ✓ |
 | Criar evento | `POST /events` | ✓ | ✓ | ✖ | ✖ |
 | Editar evento | `PUT /events/:id` | ✓ | ✓ | ✖ | ✖ |
 | Deletar evento | `DELETE /events/:id` | ✓ | ✖ | ✖ | ✖ |
 | Cadastrar-se | `POST /users/register` | ✓ | ✓ | ✓ | ✓ |
 | Listar usuários | `GET /users` | ✓ | ✓ | ✖ | ✖ |
-| Editar usuário | `PUT/PATCH /users/:id` | ✓ | ✓ (apenas perfis USER) | ✓ (apenas o próprio) | ✖ |
+| Editar usuário | `PUT/PATCH /users/:id` | ✓ | ✓ só perfis USER | ✓ só o próprio | ✖ |
 | Deletar usuário | `DELETE /users/:id` | ✓ | ✖ | ✖ | ✖ |
-| Inscrever-se em evento | `POST /subscriptions` | ✓ | ✓ | ✓ | ✖ |
-| Listar inscrições | `GET /subscriptions` | ✓ (todas) | ✓ (todas) | ✓ (apenas as suas) | ✖ |
-| Emitir / baixar certificado | `GET /certificates/:id` | ✓ | ✓ | ✓ (apenas das suas) | ✖ |
+| Inscrever-se | `POST /subscriptions` | ✓ | ✓ | ✓ | ✖ |
+| Ver inscrições | `GET /subscriptions` | ✓ todas | ✓ todas | ✓ só as suas | ✖ |
+| Certificado | `GET /certificates/:id` | ✓ | ✓ | ✓ só das suas | ✖ |
 
-Regras complementares:
+**O que a API responde quando algo não pode:**
 
-- O cadastro público sempre cria perfil `USER`; somente um ADMIN autenticado pode definir `role` no cadastro ou na edição.
-- EDITOR pode editar o próprio cadastro e usuários com perfil `USER`, nunca ADMIN/outros EDITORs.
-- USER só se inscreve a si mesmo; ADMIN/EDITOR podem enviar `user_id` para inscrever outro participante.
-- `/certificates/:id` recebe o **id da inscrição** e só emite após o término do evento.
-- Respostas: `401` sem token/token inválido, `403` perfil sem permissão, `400` validação, `404` não encontrado, `409` conflito.
+| Código | Significado |
+|:-:|---|
+| 401 | Você não fez login (ou o token é inválido/expirou) |
+| 403 | Você fez login, mas seu perfil não pode fazer isso |
+| 400 | Dados errados ou regra de negócio (ex.: evento já terminou) |
+| 404 | Não existe |
+| 409 | Conflito (ex.: já inscrito, evento lotado, e-mail repetido) |
 
-## Como executar
+---
 
-### Opção 1 — Docker (recomendado)
+## 🔑 Como o login funciona
 
-```bash
-docker compose up --build
+1. Você envia e-mail e senha para `POST /auth/login`.
+2. A API confere a senha (guardada criptografada com bcrypt) e devolve um **token JWT**.
+3. O token é como um "crachá": dentro dele estão seu **id** e seu **perfil**. Vale por 8 horas.
+4. Nas próximas chamadas você manda o crachá no cabeçalho:
+   `Authorization: Bearer <token>`
+
+No **Swagger** (`/api-docs`): faça o login, copie o `token`, clique no botão **Authorize** e cole.
+
+---
+
+## 🧱 Como o código está organizado
+
+Toda requisição passa por estas etapas, em ordem:
+
+```
+Requisição
+  → routes/        qual URL e quem pode entrar
+  → middlewares/   confere o token, o perfil e valida os dados
+  → controllers/   recebe a requisição e devolve a resposta
+  → services/      regras de negócio ("USER só edita o próprio perfil")
+  → repositories/  comandos SQL
+  → PostgreSQL
 ```
 
-O PostgreSQL executa `database/schema.sql` automaticamente na primeira inicialização. API em `http://localhost:3000`, Swagger em `http://localhost:3000/api-docs`.
+A permissão é checada em **dois lugares**:
 
-### Opção 2 — Local
+1. **Na rota** (`src/routes/index.js`): "esse perfil pode usar esse endpoint?"
+   Ex.: `DELETE /events/:id` só deixa ADMIN entrar.
+2. **No service** (`src/services/`): "pode mexer **nesse registro específico**?"
+   Ex.: o USER entra em `PUT /users/:id`, mas só passa se o `id` for o dele.
 
-Pré-requisitos: Node.js 18+ e PostgreSQL.
+Pastas:
+
+```
+apresentacao.bat     menu da apresentação
+database/schema.sql  cria as tabelas e os dados de teste
+postman/             coleção para importar no Postman
+scripts/demo.js      demonstração guiada
+scripts/e2e.js       testes automáticos das permissões
+src/
+  routes/  middlewares/  validators/  controllers/  services/  repositories/
+  docs/openapi.js    documentação Swagger
+```
+
+---
+
+## 📋 Regras de negócio
+
+- **Cadastro público** sempre cria perfil USER (mesmo que alguém envie `"role": "ADMIN"`). Só um ADMIN define perfis.
+- **Inscrição**: não dá para se inscrever duas vezes no mesmo evento, nem em evento lotado ou já encerrado.
+  A checagem de vagas é feita numa transação, então duas pessoas não "roubam" a última vaga ao mesmo tempo.
+- **Certificado**: `GET /certificates/:id` usa o **id da inscrição**. Só sai depois que o evento termina.
+  Pedir de novo devolve o mesmo código de validação. Com `?format=html` baixa o certificado pronto.
+- **Listagens** têm paginação (`?page=1&limit=10`) e filtros:
+  - eventos: `search`, `location`, `from`, `to`, `sort`, `order`
+  - usuários: `role`, `search`
+  - inscrições: `event_id`, `user_id`
+
+---
+
+## 🗄️ Banco de dados
+
+```
+users ──< subscriptions >── events
+               │
+          certificates  (1 por inscrição)
+```
+
+O arquivo `database/schema.sql` cria tudo e insere os 3 usuários de teste e 3 eventos (um deles já encerrado, com uma inscrição do USER, para demonstrar o certificado).
+
+---
+
+## 🧪 Testes
+
+- **Automático:** opção **3** do `apresentacao.bat` (ou `npm run test:e2e`) — 60 verificações da tabela de permissões.
+- **Postman:** importe `postman/RBAC.postman_collection.json`, rode primeiro a pasta **0. Auth** (salva os tokens) e depois as outras.
+
+---
+
+## 🛠️ Rodar sem o .bat
+
+**Com Docker:**
+
+```bash
+docker compose up -d --build
+```
+
+**Sem Docker** (precisa de um PostgreSQL instalado):
 
 ```bash
 npm install
-cp .env.example .env        # ajuste DATABASE_URL e JWT_SECRET
-npm run db:init             # cria tabelas e dados iniciais (recria o banco!)
+copy .env.example .env      # ajuste DATABASE_URL se precisar
+npm run db:init             # cria as tabelas (apaga dados anteriores!)
 npm start
 ```
 
-### Usuários de teste (senha `Senha@123`)
+API: http://127.0.0.1:3000 · Swagger: http://127.0.0.1:3000/api-docs
 
-| Perfil | E-mail |
-|---|---|
-| ADMIN | admin@universidade.edu |
-| EDITOR | editor@universidade.edu |
-| USER | user@universidade.edu |
+> Use `127.0.0.1` em vez de `localhost`: em algumas máquinas o Docker Desktop trava conexões por `localhost`.
 
-```bash
-curl -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"admin@universidade.edu","password":"Senha@123"}'
-# use o token retornado: Authorization: Bearer <token>
-```
+---
 
-## Endpoints
+## 💬 Questões para discussão
 
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/auth/login` | Login, retorna JWT |
-| GET | `/auth/me` | Usuário autenticado |
-| POST | `/users/register` | Cadastro |
-| GET | `/users?page&limit&role&search` | Lista usuários |
-| GET | `/users/:id` | Busca usuário |
-| PUT/PATCH | `/users/:id` | Edita usuário |
-| DELETE | `/users/:id` | Remove usuário |
-| GET | `/events?page&limit&search&location&from&to&sort&order` | Lista eventos |
-| GET | `/events/:id` | Busca evento |
-| POST | `/events` | Cria evento |
-| PUT | `/events/:id` | Edita evento |
-| DELETE | `/events/:id` | Remove evento |
-| POST | `/subscriptions` | Inscreve em evento |
-| GET | `/subscriptions?page&limit&event_id&user_id` | Lista inscrições |
-| GET | `/subscriptions/:id` | Busca inscrição |
-| GET | `/certificates/:id?format=json\|html` | Emite/baixa certificado da inscrição |
+**Escalabilidade:** a API não guarda sessão (o JWT carrega tudo), então dá para rodar várias cópias atrás de um balanceador. Listagens paginadas, índices no banco e Docker ajudam a crescer. Próximo passo: cache (Redis) na lista pública de eventos.
 
-Todas as rotas também respondem com o prefixo versionado `/api/v1`. Respostas paginadas seguem o formato `{ "data": [...], "meta": { "page", "limit", "total", "totalPages" } }`.
+**Segurança:** senhas com bcrypt, token com validade, permissões checadas na rota e no service, SQL sempre parametrizado (sem SQL injection), validação de todos os dados de entrada e cabeçalhos de segurança (helmet). Em produção: HTTPS e limite de tentativas de login.
 
-## Testes
+**Manutenção:** cada camada tem uma responsabilidade só, os erros seguem um padrão, a documentação fica no Swagger e as rotas são versionadas (`/api/v1`).
 
-- **Postman**: importe `postman/RBAC.postman_collection.json`, execute a pasta *0. Auth* (salva os tokens) e depois as demais. Cada requisição tem asserção de status (`✓` permitido, `✖` negado).
-- **E2E da matriz RBAC** (60 verificações) com a API rodando sobre um banco recém-inicializado:
-
-```bash
-npm run db:init && npm run test:e2e
-```
-
-## Questões para discussão
-
-**Escalabilidade** — API stateless (JWT), permitindo múltiplas instâncias atrás de um balanceador; pool de conexões no PostgreSQL; paginação obrigatória nas listagens; índices em `events.start_date`, `subscriptions.event_id` e restrições `UNIQUE`; containerização com Docker facilita escalar horizontalmente. Próximos passos: cache (Redis) para listagem pública de eventos e réplicas de leitura.
-
-**Segurança** — senhas com bcrypt; JWT com expiração; RBAC em middleware (`authorize`) somado a regras de posse na camada de serviço; SQL sempre parametrizado; validação e `stripUnknown` em todas as entradas; `helmet` e CORS; segredo do JWT via variável de ambiente. Em produção: HTTPS, rate limiting no login e refresh tokens.
-
-**Manutenção** — separação em camadas (rotas, controllers, serviços, repositórios), erros padronizados via `AppError`, contrato documentado em OpenAPI, versionamento de rota (`/api/v1`) e de código (Git).
-
-**Integração web e mobile** — contrato JSON documentado no Swagger (permite gerar clientes), CORS habilitado, autenticação via header `Authorization: Bearer`, independente de cookies, o que serve tanto a SPAs quanto a apps móveis.
+**Web e mobile:** a API fala JSON e usa o cabeçalho `Authorization`, sem depender de cookies. Isso funciona igual para um site, um app Android/iOS ou qualquer outro cliente. O Swagger pode até gerar o código do cliente automaticamente.
